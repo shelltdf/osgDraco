@@ -25,9 +25,12 @@ struct DracoOptions {
     DracoOptions();
 
     bool is_point_cloud;
+
     int pos_quantization_bits;
-    int tex_coords_quantization_bits;
     int normals_quantization_bits;
+    int colors_quantization_bits;
+    int tex_coords_quantization_bits;
+    
     int compression_level;
     std::string input;
     std::string output;
@@ -36,39 +39,63 @@ struct DracoOptions {
 DracoOptions::DracoOptions()
     : is_point_cloud(false),
     pos_quantization_bits(14),
-    tex_coords_quantization_bits(12),
+    colors_quantization_bits(12),
     normals_quantization_bits(10),
+    tex_coords_quantization_bits(12),
     compression_level(0) {}
 
 
-void PrintOptions(const draco::PointCloud &pc, const DracoOptions &options) {
+void PrintOptions(const draco::PointCloud &pc, const DracoOptions &options) 
+{
     printf("Encoder options:\n");
     printf("  Compression level = %d\n", options.compression_level);
-    if (options.pos_quantization_bits <= 0) {
+
+    if (options.pos_quantization_bits <= 0) 
+    {
         printf("  Positions: No quantization\n");
     }
-    else {
+    else 
+    {
         printf("  Positions: Quantization = %d bits\n",
             options.pos_quantization_bits);
     }
 
-    if (pc.GetNamedAttributeId(draco::GeometryAttribute::TEX_COORD) >= 0) {
-        if (options.tex_coords_quantization_bits <= 0) {
-            printf("  Texture coordinates: No quantization\n");
+    if (pc.GetNamedAttributeId(draco::GeometryAttribute::NORMAL) >= 0) 
+    {
+        if (options.normals_quantization_bits <= 0) 
+        {
+            printf("  Normals: No quantization\n");
         }
-        else {
-            printf("  Texture coordinates: Quantization = %d bits\n",
-                options.tex_coords_quantization_bits);
+        else 
+        {
+            printf("  Normals: Quantization = %d bits\n",
+                options.normals_quantization_bits);
         }
     }
 
-    if (pc.GetNamedAttributeId(draco::GeometryAttribute::NORMAL) >= 0) {
-        if (options.normals_quantization_bits <= 0) {
-            printf("  Normals: No quantization\n");
+    if (pc.GetNamedAttributeId(draco::GeometryAttribute::COLOR) >= 0)
+    {
+        if (options.colors_quantization_bits <= 0)
+        {
+            printf("  Color coordinates: No quantization\n");
         }
-        else {
-            printf("  Normals: Quantization = %d bits\n",
-                options.normals_quantization_bits);
+        else 
+        {
+            printf("  Color coordinates: Quantization = %d bits\n",
+                options.colors_quantization_bits);
+        }
+    }
+
+    if (pc.GetNamedAttributeId(draco::GeometryAttribute::TEX_COORD) >= 0)
+    {
+        if (options.tex_coords_quantization_bits <= 0)
+        {
+            printf("  Texture coordinates: No quantization\n");
+        }
+        else
+        {
+            printf("  Texture coordinates: Quantization = %d bits\n",
+                options.tex_coords_quantization_bits);
         }
     }
     printf("\n");
@@ -126,7 +153,7 @@ int EncodeMeshToFile(const draco::Mesh &mesh,
 
 struct DarocOptionsStruct
 {
-    bool isPointCloud;
+    bool isPointCloud; //point cloud or mesh
 };
 
 DarocOptionsStruct parseOptions(const osgDB::ReaderWriter::Options* options)
@@ -156,14 +183,17 @@ void osgNodeToDarocAttribute(GeometryFlat* gf, draco::PointCloud* pc)
 {
     //num
     size_t num_positions_ = gf->m_geomtry_data.raw_vertex->size();
-    size_t num_tex_coords_ = gf->m_geomtry_data.raw_uv0->size();
     size_t num_normals_ = gf->m_geomtry_data.raw_normal->size();
+    size_t num_colors_ = gf->m_geomtry_data.raw_color->size();
+    size_t num_tex_coords_ = gf->m_geomtry_data.raw_uv0->size();
     size_t num_obj_faces_ = num_positions_ / 3;
 
     // attribute id
     int pos_att_id_ = 0;
-    int tex_att_id_ = 0;
     int norm_att_id_ = 0;
+    int color_att_id_ = 0;
+    int tex_att_id_ = 0;
+    
 
     // Add attributes if they are present in the input data.
     if (num_positions_ > 0)
@@ -173,13 +203,6 @@ void osgNodeToDarocAttribute(GeometryFlat* gf, draco::PointCloud* pc)
             sizeof(float) * 3, 0);
         pos_att_id_ = pc->AddAttribute(va, true, num_positions_);
     }
-    if (num_tex_coords_ > 0)
-    {
-        draco::GeometryAttribute va;
-        va.Init(draco::GeometryAttribute::TEX_COORD, nullptr, 2, draco::DT_FLOAT32, false,
-            sizeof(float) * 2, 0);
-        tex_att_id_ = pc->AddAttribute(va, true, num_tex_coords_);
-    }
     if (num_normals_ > 0)
     {
         draco::GeometryAttribute va;
@@ -187,7 +210,20 @@ void osgNodeToDarocAttribute(GeometryFlat* gf, draco::PointCloud* pc)
             sizeof(float) * 3, 0);
         norm_att_id_ = pc->AddAttribute(va, true, num_normals_);
     }
-
+    if (num_colors_ > 0)
+    {
+        draco::GeometryAttribute va;
+        va.Init(draco::GeometryAttribute::COLOR, nullptr, 4, draco::DT_FLOAT32, false,
+            sizeof(float) * 4, 0);
+        color_att_id_ = pc->AddAttribute(va, true, num_colors_);
+    }
+    if (num_tex_coords_ > 0)
+    {
+        draco::GeometryAttribute va;
+        va.Init(draco::GeometryAttribute::TEX_COORD, nullptr, 2, draco::DT_FLOAT32, false,
+            sizeof(float) * 2, 0);
+        tex_att_id_ = pc->AddAttribute(va, true, num_tex_coords_);
+    }
     //num_positions_ = 0;
     //num_tex_coords_ = 0;
     //num_normals_ = 0;
@@ -205,14 +241,6 @@ void osgNodeToDarocAttribute(GeometryFlat* gf, draco::PointCloud* pc)
         //pc->attribute(pos_att_id_)->SetPointMapEntry(draco::PointIndex(i),draco::AttributeValueIndex(i));
     }
 
-    for (size_t i = 0; i < num_tex_coords_; i++)
-    {
-        float uv[2];
-        uv[0] = (*gf->m_geomtry_data.raw_uv0)[i].x();
-        uv[1] = (*gf->m_geomtry_data.raw_uv0)[i].y();
-        pc->attribute(tex_att_id_)->SetAttributeValue(draco::AttributeValueIndex(i), uv);
-        //pc->attribute(tex_att_id_)->SetPointMapEntry(draco::PointIndex(i), draco::AttributeValueIndex(i));
-    }
 
     for (size_t i = 0; i < num_normals_; i++)
     {
@@ -223,6 +251,27 @@ void osgNodeToDarocAttribute(GeometryFlat* gf, draco::PointCloud* pc)
         pc->attribute(norm_att_id_)->SetAttributeValue(draco::AttributeValueIndex(i), n);
         //pc->attribute(norm_att_id_)->SetPointMapEntry(draco::PointIndex(i), draco::AttributeValueIndex(i));
     }
+
+    for (size_t i = 0; i < num_colors_; i++)
+    {
+        float color[4];
+        color[0] = (*gf->m_geomtry_data.raw_color)[i].x();
+        color[1] = (*gf->m_geomtry_data.raw_color)[i].y();
+        color[2] = (*gf->m_geomtry_data.raw_color)[i].z();
+        color[3] = (*gf->m_geomtry_data.raw_color)[i].w();
+        pc->attribute(color_att_id_)->SetAttributeValue(draco::AttributeValueIndex(i), color);
+        //pc->attribute(tex_att_id_)->SetPointMapEntry(draco::PointIndex(i), draco::AttributeValueIndex(i));
+    }
+
+    for (size_t i = 0; i < num_tex_coords_; i++)
+    {
+        float uv[2];
+        uv[0] = (*gf->m_geomtry_data.raw_uv0)[i].x();
+        uv[1] = (*gf->m_geomtry_data.raw_uv0)[i].y();
+        pc->attribute(tex_att_id_)->SetAttributeValue(draco::AttributeValueIndex(i), uv);
+        //pc->attribute(tex_att_id_)->SetPointMapEntry(draco::PointIndex(i), draco::AttributeValueIndex(i));
+    }
+
 }
 
 class ReaderWriterDRC

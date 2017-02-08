@@ -12,11 +12,12 @@
 
 #include <iostream>
 
-osg::Node* createParticle(int count, bool is_mesh)
+osg::Node* createMeshOrParticle(int count, bool is_mesh)
 {
-    int size_in_byte = count * 3 * 3 * 4 * 2 * 4;
-    printf("size_in_byte : %d\n", size_in_byte);
+    if (is_mesh) count *= 3;
 
+    int size_in_byte = count * 3 * 3 * 4 * 2 * sizeof(float);
+    printf("size_in_byte : %d\n", size_in_byte);
 
     //
     osg::ref_ptr<osg::Vec3Array> raw_vertex = new osg::Vec3Array();
@@ -32,13 +33,10 @@ osg::Node* createParticle(int count, bool is_mesh)
         float y = float(rand() % 10000) / 10000.0;
         float z = float(rand() % 10000) / 10000.0;
 
+        // 1 to -1
         x = x * 2 - 1;
         y = y * 2 - 1;
         z = z * 2 - 1;
-
-        //x = i;
-        //y = i+1;
-        //z = i+2;
 
         osg::Vec3 v(x, y, z);
         v.normalize();
@@ -156,13 +154,12 @@ int main(int argc, char **argv)
     viewer.setSceneData(root);
 
     //
-    bool save_to_pointcloud = false;
+    bool save_to_pointcloud = true;
 
     //load model
     //osg::Node* node_obj = osgDB::readNodeFile("../data/house.obj");
     //osg::Node* node_obj = createModel();
-    //osg::Node* node_obj = createParticle(1000 * 1000, !save_to_pointcloud);
-    osg::Node* node_obj = createParticle(1000 * 1, true);
+    osg::Node* node_obj = createMeshOrParticle(1000 * 1, !save_to_pointcloud);
     root->addChild(node_obj);
 
 #if 1
