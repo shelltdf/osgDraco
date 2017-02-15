@@ -154,22 +154,40 @@ int main(int argc, char **argv)
     viewer.setSceneData(root);
 
     //
-    bool save_to_pointcloud = true;
+    bool save_to_pointcloud = false;
 
     //load model
     //osg::Node* node_obj = osgDB::readNodeFile("../data/house.obj");
     //osg::Node* node_obj = createModel();
-    osg::Node* node_obj = createMeshOrParticle(1000 * 1, !save_to_pointcloud);
+    osg::Node* node_obj = createMeshOrParticle(1000 * 10, !save_to_pointcloud);
     root->addChild(node_obj);
 
 #if 1
 
     osgDB::Options* ops = new osgDB::Options();
-    if (save_to_pointcloud) ops->setOptionString("draco_point_cloud");
+    std::string opt_string = "";
+    {
+        if (save_to_pointcloud) opt_string += "draco_point_cloud ";
+
+        opt_string += "draco_save_normal ";
+        //opt_string += "draco_save_color ";
+        opt_string += "draco_save_uv0 ";
+
+        opt_string += "draco_compression_level=0 "; //0-10
+
+        opt_string += "draco_position_qb=14 "; //14
+        opt_string += "draco_normal_qb=8 "; //12
+        opt_string += "draco_color_qb=10 "; //10
+        opt_string += "draco_uv0_qb=8 "; //12
+
+    }
+    ops->setOptionString(opt_string);
+
+
 
     //save to .drc
     osgDB::writeNodeFile(*node_obj, "test.drc", ops);
-    //osgDB::writeNodeFile(*node_obj, "test.osgb");
+    osgDB::writeNodeFile(*node_obj, "test.osgb");
     //osgDB::writeNodeFile(*node_obj, "test.obj");
 
 #endif

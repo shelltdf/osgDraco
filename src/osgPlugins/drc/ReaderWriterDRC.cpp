@@ -24,7 +24,12 @@
 struct DracoOptions {
     DracoOptions();
 
-    bool is_point_cloud;
+    bool opt_point_cloud;
+
+    //bool opt_save_position;
+    bool opt_save_normal;
+    bool opt_save_color;
+    bool opt_save_uv0;
 
     int pos_quantization_bits;
     int normals_quantization_bits;
@@ -37,7 +42,11 @@ struct DracoOptions {
 };
 
 DracoOptions::DracoOptions()
-    : is_point_cloud(false),
+    : opt_point_cloud(false),
+    //opt_save_position(true),
+    opt_save_normal(false),
+    opt_save_color(false),
+    opt_save_uv0(false),
     pos_quantization_bits(14),
     colors_quantization_bits(12),
     normals_quantization_bits(10),
@@ -151,15 +160,26 @@ int EncodeMeshToFile(const draco::Mesh &mesh,
     return 0;
 }
 
+#if 0
 struct DarocOptionsStruct
 {
     bool isPointCloud; //point cloud or mesh
-};
 
-DarocOptionsStruct parseOptions(const osgDB::ReaderWriter::Options* options)
+    //bool save_position;
+    bool save_normal;
+    bool save_color;
+    bool save_uv0;
+};
+#endif
+
+DracoOptions parseOptions(const osgDB::ReaderWriter::Options* options)
 {
-    DarocOptionsStruct localOptions;
-    localOptions.isPointCloud = false;
+    DracoOptions localOptions;
+    //localOptions.isPointCloud = false;
+    ////localOptions.save_position = true;
+    //localOptions.save_normal = false;
+    //localOptions.save_color = false;
+    //localOptions.save_uv0 = false;
 
     if (options != NULL)
     {
@@ -167,10 +187,64 @@ DarocOptionsStruct parseOptions(const osgDB::ReaderWriter::Options* options)
         std::string opt;
         while (iss >> opt)
         {
+            // split opt into pre= and post=
+            std::string pre_equals;
+            std::string post_equals;
+
+            size_t found = opt.find("=");
+            if (found != std::string::npos)
+            {
+                pre_equals = opt.substr(0, found);
+                post_equals = opt.substr(found + 1);
+            }
+            else
+            {
+                pre_equals = opt;
+            }
+
             if (opt == "draco_point_cloud")
             {
-                localOptions.isPointCloud = true;
+                localOptions.opt_point_cloud = true;
             }
+
+            if (opt == "draco_save_normal")
+            {
+                localOptions.opt_save_normal = true;
+            }
+            if (opt == "draco_save_color")
+            {
+                localOptions.opt_save_color = true;
+            }
+            if (opt == "draco_save_uv0")
+            {
+                localOptions.opt_save_uv0 = true;
+            }
+
+            if (post_equals.length() > 0)
+            {
+                if (pre_equals == "draco_compression_level")
+                {
+                    localOptions.compression_level = atoi(post_equals.c_str());
+                }
+
+                if (pre_equals == "draco_position_qb")
+                {
+                    localOptions.pos_quantization_bits = atoi(post_equals.c_str());
+                }
+                if (pre_equals == "draco_normal_qb")
+                {
+                    localOptions.normals_quantization_bits = atoi(post_equals.c_str());
+                }
+                if (pre_equals == "draco_color_qb")
+                {
+                    localOptions.colors_quantization_bits = atoi(post_equals.c_str());
+                }
+                if (pre_equals == "draco_uv0_qb")
+                {
+                    localOptions.tex_coords_quantization_bits = atoi(post_equals.c_str());
+                }
+            }
+
         }
     }
 
@@ -179,7 +253,7 @@ DarocOptionsStruct parseOptions(const osgDB::ReaderWriter::Options* options)
 
 
 //osg node to daroc data
-void osgNodeToDarocAttribute(GeometryFlat* gf, draco::PointCloud* pc)
+void osgNodeToDarocAttribute(GeometryFlat* gf, draco::PointCloud* pc, DracoOptions& opt)
 {
     //num
     size_t num_positions_ = gf->m_geomtry_data.raw_vertex->size();
@@ -187,6 +261,10 @@ void osgNodeToDarocAttribute(GeometryFlat* gf, draco::PointCloud* pc)
     size_t num_colors_ = gf->m_geomtry_data.raw_color->size();
     size_t num_tex_coords_ = gf->m_geomtry_data.raw_uv0->size();
     size_t num_obj_faces_ = num_positions_ / 3;
+
+    if (!opt.opt_save_normal)num_normals_ = 0;
+    if (!opt.opt_save_color)num_colors_ = 0;
+    if (!opt.opt_save_uv0)num_tex_coords_ = 0;
 
     // attribute id
     int pos_att_id_ = 0;
@@ -546,12 +624,16 @@ public:
         OSG_INFO << "Writing file " << fileName << std::endl;
 
 
-        DracoOptions draco_options;
+        DracoOptions draco_options = parseOptions(options);
         //draco_options.is_point_cloud = true; //default is false
 
         //detect node is mesh or point cloud
-        DarocOptionsStruct dos = parseOptions(options);
-        draco_options.is_point_cloud = dos.isPointCloud;
+        //DarocOptionsStruct dos = parseOptions(options);
+        //draco_options.is_point_cloud = dos.isPointCloud;
+        ////draco_options.save_position = dos.save_position;
+        //draco_options.save_normal = dos.save_normal;
+        //draco_options.save_color = dos.save_color;
+        //draco_options.save_uv0 = dos.save_uv0;
 
 
         //
@@ -562,7 +644,7 @@ public:
         //pointCloud and mesh
         std::unique_ptr<draco::PointCloud> pc;
         draco::Mesh *mesh = nullptr;
-        if (!draco_options.is_point_cloud)
+        if (!draco_options.opt_point_cloud)
         {
             std::unique_ptr<draco::Mesh> out_mesh(new draco::Mesh());
 
@@ -575,7 +657,7 @@ public:
             out_mesh->SetNumFaces(num_obj_faces_);
             out_mesh->set_num_points(num_positions_);
 
-            osgNodeToDarocAttribute(gf, out_mesh.get());
+            osgNodeToDarocAttribute(gf, out_mesh.get(), draco_options);
 
             // Add faces with identity mapping between vertex and corner indices.
             // Duplicate vertices will get removed later.
@@ -608,7 +690,7 @@ public:
             int num_positions_ = gf->m_geomtry_data.raw_vertex->size();
             pc->set_num_points(num_positions_);
 
-            osgNodeToDarocAttribute(gf, pc.get());
+            osgNodeToDarocAttribute(gf, pc.get(), draco_options);
 
             pc->DeduplicateAttributeValues();
             pc->DeduplicatePointIds();
